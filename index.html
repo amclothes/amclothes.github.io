@@ -51,6 +51,174 @@ footer{text-align:center;color:var(--mu);padding:30px;font-size:13px;border-top:
 <a class="logo" href="#" id="home"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="none" stroke="var(--ac)" stroke-width="2"/><path d="M11 33 20 14l4 9 4-9 9 19" fill="none" stroke="var(--tx)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/><path d="M17 27h14" stroke="var(--ac)" stroke-width="2.4" stroke-linecap="round"/></svg>Mclothes</a>
 <div class="sp"></div>
 <button id="th" title="Day / Night">🌓</button>
+<button id="gl" style="display:none"></button><button id="adm" style="display:none">Ադմին</button>
+<button class="pri" id="cartb">🛒 <span id="cc">0</span></button>
+</header>
+
+<div id="shop">
+<section class="hero"><h1>Mclothes</h1><h2 style="font-size:15px;letter-spacing:.22em;text-transform:uppercase;color:var(--ac);font-weight:600;margin:0 0 14px">Baggy polos · T-shirts · Armenia</h2><p>Ոճ, որը խոսում է քո փոխարեն։ Նոր հավաքածու՝ պատվիրիր հիմա և ստացիր արագ։</p><button class="pri" onclick="document.getElementById('gr').scrollIntoView({behavior:'smooth'})">Դիտել հավաքածուն</button></section>
+<main><div class="cats" id="cats"></div><div class="grid" id="gr"></div></main>
+</div>
+
+<div id="adminv" style="display:none"><div class="admin">
+<div class="box"><h2 style="margin-top:0">Ավելացնել հագուստ</h2>
+<label>Անվանում</label><input id="an">
+<label>Գին (֏)</label><input id="ap" type="number">
+<label>Կատեգորիա (օր.՝ Վերնաշապիկ, Շալվար, Զգեստ)</label><input id="ac">
+<label>Չափսեր (բաժանել ստորակետով, օր.՝ S,M,L)</label><input id="as" value="S,M,L,XL">
+<label>Կարգավիճակ</label><select id="ast"><option value="in">Առկա է</option><option value="pre">Նախավաճառք</option><option value="out">Սպառված է</option></select>
+<label>Նախավաճառքի գին (֏), եթե տարբերվում է</label><input id="app" type="number">
+<label>Նկար</label><input id="ai" type="file" accept="image/*">
+<button class="pri" id="asave" style="margin-top:16px">Ավելացնել խանութում</button></div>
+<div class="box"><h3 style="margin-top:0">Ապրանքներ</h3><div id="al"></div></div>
+<div class="box"><h3 style="margin-top:0">Պատվերներ</h3><div id="ol"></div></div>
+</div></div>
+
+<footer>© Mclothes · WhatsApp / Viber՝ 098582462 · Telegram՝ @mclothessite</footer>
+
+<div class="drawer" id="dr"><div class="row"><b>Զամբյուղ</b><button id="cl">✕</button></div><div id="ci"></div>
+<div id="co" style="display:none"><div class="row"><b>Ընդամենը</b><b id="tot"></b></div>
+<label>Անուն Ազգանուն</label><input id="cn"><label>Հեռախոս</label><input id="cp" type="tel">
+<label>Հասցե</label><textarea id="ca"></textarea><label>Մեկնաբանություն</label><input id="cm">
+<button class="pri" id="ord" style="width:100%;margin-top:16px">Պատվիրել WhatsApp-ով</button><button id="ordt" style="width:100%;margin-top:8px">Պատվիրել Telegram-ով</button><button id="ordv" style="width:100%;margin-top:8px">Պատվիրել Viber-ով</button></div></div>
+<div class="t" id="toast"></div>
+
+<script>
+const WA="37498582462",TG="mclothessite";
+let products=[],cart=[],cat="Բոլորը",db=null,user=null,isAdmin=false,orders=[];
+const $=id=>document.getElementById(id);
+const toast=m=>{const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2500)};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>Number(n).toLocaleString('hy-AM')+' ֏';
+const selCol={};
+const cover=p=>(p.colors&&p.colors[0]&&p.colors[0].img)||p.img||'';
+const swatches=p=>p.colors&&p.colors.length?`<div class="sw">${p.colors.map((c,i)=>`<button class="${i?'':'on'}" data-sw="${p.id}" data-i="${i}">${esc(c.name)}</button>`).join('')}</div>`:'';
+const priceOf=p=>(p.status==='pre'&&p.pp)?p.pp:p.price;
+const priceHtml=p=>p.status==='pre'&&p.pp?`${money(p.pp)}<span class="old">${money(p.price)}</span>`:money(p.price);
+const badge=p=>p.status==='pre'?'<span class="bd">Նախավաճառք</span>':p.status==='out'?'<span class="bd out">Սպառված է</span>':'<span class="bd">Առկա է</span>';
+function lsGet(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+
+// theme
+const root=document.documentElement;
+const saved=lsGet('am-theme');if(saved)root.dataset.theme=saved;
+$('th').onclick=()=>{const dark=getComputedStyle(root).getPropertyValue('--bg').trim()==='#0e0e11';const n=dark?'light':'dark';root.dataset.theme=n;lsSet('am-theme',n)};
+
+// data
+async function init(){
+ try{ if(window.claude){db=await claude.use("db");user=await claude.use("user");} }catch(e){db=null}
+ isAdmin=!!(user&&user.canEdit&&user.canEdit());
+ $('adm').style.display='none';
+ if(isAdmin&&location.hash==='#admin'){$('adminv').style.display='';$('shop').style.display='none';$('adm').style.display='';$('adm').textContent='Խանութ'}
+ if(db){
+  db.collection("products").onSnapshot(s=>{products=[];s.forEach(d=>products.push({id:d.id,...d.data()}));products.sort((a,b)=>(b.ts||0)-(a.ts||0));render()});
+  if(isAdmin)db.collection("orders").onSnapshot(s=>{orders=[];s.forEach(d=>orders.push({id:d.id,...d.data()}));orders.sort((a,b)=>b.ts-a.ts);renderAdmin()});
+ }else{
+  try{const r=await fetch('products.json?v='+Date.now());if(r.ok)products=await r.json()}catch(e){}
+  if(!Array.isArray(products)||!products.length)products=lsGet('am-products')||[];
+  products.forEach((p,i)=>{if(!p.id)p.id='p'+(p.ts||i)});
+  products.sort((a,b)=>(b.ts||0)-(a.ts||0));render()}
+ render();
+}
+function render(){
+ const cats=["Բոլորը",...new Set(products.map(p=>p.cat).filter(Boolean))];
+ $('cats').innerHTML=cats.map(c=>`<button class="${c===cat?'on':''}" data-c="${esc(c)}">${esc(c)}</button>`).join('');
+ $('cats').querySelectorAll('button').forEach(b=>b.onclick=()=>{cat=b.dataset.c;render()});
+ const list=products.filter(p=>cat==="Բոլորը"||p.cat===cat);
+ $('gr').innerHTML=list.length?list.map(p=>`<div class="p"><div class="im" id="im-${p.id}" style="${cover(p)?`background-image:url(${cover(p)})`:''}">${cover(p)?'':'👕'}</div><div class="in"><h3>${esc(p.name)}</h3>${badge(p)}<div class="pr">${priceHtml(p)}</div>${swatches(p)}<select id="s-${p.id}">${(p.sizes||[]).map(s=>`<option>${esc(s)}</option>`).join('')}</select>${p.status==='out'?'<button disabled style="opacity:.5">Սպառված է</button>':`<button class="pri" data-a="${p.id}">${p.status==='pre'?'Նախավաճառք':'Ավելացնել'}</button>`}</div></div>`).join(''):'<div class="empty" style="grid-column:1/-1">Ապրանքներ դեռ չկան։</div>';
+ $('gr').querySelectorAll('[data-sw]').forEach(b=>b.onclick=()=>{const p=products.find(x=>x.id===b.dataset.sw),i=+b.dataset.i;selCol[p.id]=i;const im=$('im-'+p.id);im.style.backgroundImage=`url(${p.colors[i].img})`;im.textContent='';b.parentNode.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b))});
+ $('gr').querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{const p=products.find(x=>x.id===b.dataset.a);cart.push({n:p.name,pr:priceOf(p),s:$('s-'+p.id).value,col:(p.colors&&p.colors[selCol[p.id]||0]||{}).name||'',pre:p.status==='pre'});drawCart();toast('Ավելացվեց ✓')});
+ renderAdmin();
+}
+function drawCart(){
+ lsSet('mc-cart',cart);cloudSave();
+ $('cc').textContent=cart.length;
+ $('ci').innerHTML=cart.length?cart.map((c,i)=>`<div class="row"><span>${esc(c.n)} (${esc(c.s)}${c.col?', '+esc(c.col):''})</span><span>${money(c.pr)} <button data-r="${i}">✕</button></span></div>`).join(''):'<div class="empty">Զամբյուղը դատարկ է</div>';
+ $('ci').querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{cart.splice(+b.dataset.r,1);drawCart()});
+ $('co').style.display=cart.length?'':'none';
+ $('tot').textContent=money(cart.reduce((a,c)=>a+Number(c.pr),0));
+}
+$('cartb').onclick=()=>{drawCart();$('dr').classList.add('open')};
+$('cl').onclick=()=>$('dr').classList.remove('open');
+async function send(ch){
+ const n=$('cn').value.trim(),p=$('cp').value.trim(),a=$('ca').value.trim();
+ if(!n||!p||!a)return toast('Լրացրեք անունը, հեռախոսը և հասցեն');
+ const total=cart.reduce((x,c)=>x+Number(c.pr),0);
+ const msg=`🛍 Նոր պատվեր — Mclothes\n\n`+cart.map((c,i)=>`${i+1}. ${c.n} | չափս՝ ${c.s}${c.col?' | գույն՝ '+c.col:''} | ${money(c.pr)}${c.pre?' | նախավաճառք':''}`).join('\n')+`\n\nԸնդամենը՝ ${money(total)}\n\n👤 ${n}\n📞 ${p}\n📍 ${a}`+($('cm').value?`\n💬 ${$('cm').value}`:'');
+ try{if(db)await db.collection("orders").doc("o"+Date.now()).set({name:n,phone:p,address:a,items:cart,total,ts:Date.now()})}catch(e){}
+ if(ch==='tg')window.open(`https://t.me/${TG}?text=${encodeURIComponent(msg)}`,'_blank');
+ else if(ch==='vb'){try{navigator.clipboard.writeText(msg).catch(()=>{})}catch(e){}toast('Պատվերի տեքստը պատճենվեց, տեղադրիր Viber-ում');location.href=`viber://chat?number=%2B${WA}`}
+ else window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`,'_blank');
+ cart=[];drawCart();$('dr').classList.remove('open');
+};
+$('ord').onclick=()=>send('wa');$('ordt').onclick=()=>send('tg');$('ordv').onclick=()=>send('vb');
+
+// admin
+$('adm').onclick=()=>{const on=$('adminv').style.display==='none';$('adminv').style.display=on?'':'none';$('shop').style.display=on?'none':'';$('adm').textContent=on?'Խանութ':'Ադմին'};
+$('home').onclick=e=>{e.preventDefault();$('adminv').style.display='none';$('shop').style.display='';if(isAdmin)$('adm').textContent='Ադմին'};
+function shrink(file){return new Promise(r=>{const i=new Image,u=URL.createObjectURL(file);i.onload=()=>{const w=600,h=Math.round(i.height*w/i.width),c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(i,0,0,w,h);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',.7))};i.onerror=()=>r('');i.src=u})}
+$('asave').onclick=async()=>{
+ const name=$('an').value.trim(),price=$('ap').value;
+ if(!name||!price)return toast('Լրացրեք անունը և գինը');
+ const f=$('ai').files[0],img=f?await shrink(f):'';
+ const item={name,price:+price,cat:$('ac').value.trim()||'Այլ',sizes:$('as').value.split(',').map(s=>s.trim()).filter(Boolean),img,status:$('ast').value,pp:+$('app').value||0,ts:Date.now()};
+ const id="p"+item.ts;
+ try{
+  if(db)await db.collection("products").doc(id).set(item);
+  else{products.unshift({id,...item});lsSet('am-products',products);render()}
+  ['an','ap','ac','ai','app'].forEach(k=>$(k).value='');toast('Ավելացվեց խանութում ✓');
+ }catch(e){toast('Սխալ՝ չհաջողվեց պահպանել')}
+};
+function renderAdmin(){
+ $('al').innerHTML=products.map(p=>`<div class="row"><span>${esc(p.name)} — ${money(p.price)}</span><button data-d="${p.id}">Ջնջել</button></div>`).join('')||'<div class="empty">Դատարկ է</div>';
+ $('al').querySelectorAll('[data-d]').forEach(b=>b.onclick=async()=>{if(!confirm('Ջնջե՞լ'))return;try{if(db)await db.collection("products").doc(b.dataset.d).delete();else{products=products.filter(x=>x.id!==b.dataset.d);lsSet('am-products',products);render()}}catch(e){}});
+ $('ol').innerHTML=orders.map(o=>`<div class="row" style="flex-direction:column;align-items:flex-start"><b>${esc(o.name)} · ${esc(o.phone)}</b><span>${esc(o.address)}</span><span>${(o.items||[]).map(i=>esc(i.n)+' ('+esc(i.s)+')').join(', ')} — ${money(o.total)}</span></div>`).join('')||'<div class="empty">Պատվերներ դեռ չկան</div>';
+}
+
+// ---- cart persistence + Google sign-in (Firebase) ----
+// Fill these 4 values from Firebase Console > Project settings > Your apps > Web app
+const FB={apiKey:"AIzaSyDklV1H9zxbKMczr939Snf23xzPa5VXknA",authDomain:"mclothes-7a395.firebaseapp.com",projectId:"mclothes-7a395",appId:"1:868645737815:web:2fc153070ab012f87b5a12"};
+function loadCartLS(){const c=lsGet('mc-cart');if(Array.isArray(c))cart=c}
+const mergeCart=(a,b)=>{const k=x=>x.n+'|'+x.s+'|'+(x.col||'');const seen=new Set(a.map(k));return a.concat(b.filter(x=>!seen.has(k(x))))};
+let fbAuth=null,fbDb=null,fbUser=null,cloudT=null;
+function cloudSave(){if(!fbDb||!fbUser)return;clearTimeout(cloudT);cloudT=setTimeout(()=>fbDb.collection('carts').doc(fbUser.uid).set({items:cart,ts:Date.now()}).catch(()=>{}),600)}
+function initFirebase(){
+ if(!FB.apiKey)return;
+ const load=src=>new Promise((r,j)=>{const e=document.createElement('script');e.src=src;e.onload=r;e.onerror=j;document.head.appendChild(e)});
+ const v='https://www.gstatic.com/firebasejs/10.12.2/';
+ load(v+'firebase-app-compat.js').then(()=>Promise.all([load(v+'firebase-auth-compat.js'),load(v+'firebase-firestore-compat.js')])).then(()=>{
+  firebase.initializeApp(FB);fbAuth=firebase.auth();fbDb=firebase.firestore();
+  $('gl').style.display='';$('gl').textContent='Մուտք Google-ով';
+  fbAuth.onAuthStateChanged(async u=>{
+   fbUser=u;$('gl').textContent=u?('👤 '+((u.displayName||'').split(' ')[0]||'')+' · Ելք'):'Մուտք Google-ով';
+   if(!u)return;
+   try{const d=await fbDb.collection('carts').doc(u.uid).get();const c=d.exists?(d.data().items||[]):[];
+    if(c.length){cart=mergeCart(cart,c)}
+    drawCart();
+    if(!$('cn').value&&u.displayName)$('cn').value=u.displayName}catch(e){}
+  });
+ }).catch(()=>{});
+}
+$('gl').onclick=()=>{if(!fbAuth)return;if(fbUser)fbAuth.signOut();else fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(()=>toast('Մուտքը չհաջողվեց'))};
+loadCartLS();
+init();drawCart();initFirebase();
+</script></body></html>select,input,textarea{font:inherit;width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}
+textarea{min-height:70px}label{display:block;font-size:13px;color:var(--mu);margin:10px 0 4px}
+.drawer{position:fixed;inset:0 0 0 auto;width:min(420px,100%);background:var(--card);border-left:1px solid var(--bd);z-index:9;transform:translateX(100%);transition:.3s;padding:20px;overflow:auto;padding-top:calc(20px + env(safe-area-inset-top,0px))}
+.drawer.open{transform:none}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd);font-size:14px}
+.empty{text-align:center;color:var(--mu);padding:40px}
+.admin{max-width:640px;margin:30px auto}
+.box{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:20px;margin-bottom:20px}
+footer{text-align:center;color:var(--mu);padding:30px;font-size:13px;border-top:1px solid var(--bd)}
+.bd{display:inline-block;font-size:11px;padding:3px 9px;border-radius:999px;background:var(--ac);color:#fff;width:fit-content}.bd.out{background:var(--mu)}.old{color:var(--mu);text-decoration:line-through;font-weight:400;font-size:13px;margin-left:6px}
+.sw{display:flex;gap:6px;flex-wrap:wrap}.sw button{padding:4px 11px;font-size:12px}.sw button.on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.t{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:10px 18px;border-radius:999px;z-index:20;display:none}
+</style></head><body>
+<header>
+<a class="logo" href="#" id="home"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="none" stroke="var(--ac)" stroke-width="2"/><path d="M11 33 20 14l4 9 4-9 9 19" fill="none" stroke="var(--tx)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/><path d="M17 27h14" stroke="var(--ac)" stroke-width="2.4" stroke-linecap="round"/></svg>Mclothes</a>
+<div class="sp"></div>
+<button id="th" title="Day / Night">🌓</button>
 <button id="adm" style="display:none">Ադմին</button>
 <button class="pri" id="cartb">🛒 <span id="cc">0</span></button>
 </header>
