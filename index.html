@@ -74,17 +74,17 @@ footer{text-align:center;color:var(--mu);padding:30px;font-size:13px;border-top:
 <div class="box"><h3 style="margin-top:0">Պատվերներ</h3><div id="ol"></div></div>
 </div></div>
 
-<footer>© Mclothes · WhatsApp՝ 098582462</footer>
+<footer>© Mclothes · WhatsApp / Viber՝ 098582462 · Telegram՝ @mclothessite</footer>
 
 <div class="drawer" id="dr"><div class="row"><b>Զամբյուղ</b><button id="cl">✕</button></div><div id="ci"></div>
 <div id="co" style="display:none"><div class="row"><b>Ընդամենը</b><b id="tot"></b></div>
 <label>Անուն Ազգանուն</label><input id="cn"><label>Հեռախոս</label><input id="cp" type="tel">
 <label>Հասցե</label><textarea id="ca"></textarea><label>Մեկնաբանություն</label><input id="cm">
-<button class="pri" id="ord" style="width:100%;margin-top:16px">Պատվիրել WhatsApp-ով</button></div></div>
+<button class="pri" id="ord" style="width:100%;margin-top:16px">Պատվիրել WhatsApp-ով</button><button id="ordt" style="width:100%;margin-top:8px">Պատվիրել Telegram-ով</button><button id="ordv" style="width:100%;margin-top:8px">Պատվիրել Viber-ով</button></div></div>
 <div class="t" id="toast"></div>
 
 <script>
-const WA="37498582462";
+const WA="37498582462",TG="mclothessite";
 let products=[],cart=[],cat="Բոլորը",db=null,user=null,isAdmin=false,orders=[];
 const $=id=>document.getElementById(id);
 const toast=m=>{const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2500)};
@@ -139,15 +139,18 @@ function drawCart(){
 }
 $('cartb').onclick=()=>{drawCart();$('dr').classList.add('open')};
 $('cl').onclick=()=>$('dr').classList.remove('open');
-$('ord').onclick=async()=>{
+async function send(ch){
  const n=$('cn').value.trim(),p=$('cp').value.trim(),a=$('ca').value.trim();
  if(!n||!p||!a)return toast('Լրացրեք անունը, հեռախոսը և հասցեն');
  const total=cart.reduce((x,c)=>x+Number(c.pr),0);
  const msg=`🛍 Նոր պատվեր — Mclothes\n\n`+cart.map((c,i)=>`${i+1}. ${c.n} | չափս՝ ${c.s}${c.col?' | գույն՝ '+c.col:''} | ${money(c.pr)}${c.pre?' | նախավաճառք':''}`).join('\n')+`\n\nԸնդամենը՝ ${money(total)}\n\n👤 ${n}\n📞 ${p}\n📍 ${a}`+($('cm').value?`\n💬 ${$('cm').value}`:'');
  try{if(db)await db.collection("orders").doc("o"+Date.now()).set({name:n,phone:p,address:a,items:cart,total,ts:Date.now()})}catch(e){}
- window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`,'_blank');
+ if(ch==='tg')window.open(`https://t.me/${TG}?text=${encodeURIComponent(msg)}`,'_blank');
+ else if(ch==='vb'){try{navigator.clipboard.writeText(msg).catch(()=>{})}catch(e){}toast('Պատվերի տեքստը պատճենվեց, տեղադրիր Viber-ում');location.href=`viber://chat?number=%2B${WA}`}
+ else window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`,'_blank');
  cart=[];drawCart();$('dr').classList.remove('open');
 };
+$('ord').onclick=()=>send('wa');$('ordt').onclick=()=>send('tg');$('ordv').onclick=()=>send('vb');
 
 // admin
 $('adm').onclick=()=>{const on=$('adminv').style.display==='none';$('adminv').style.display=on?'':'none';$('shop').style.display=on?'none':'';$('adm').textContent=on?'Խանութ':'Ադմին'};
